@@ -13,17 +13,17 @@ class CaptureTest < ActionDispatch::IntegrationTest
     tag && JSON.parse(CGI.unescapeHTML(tag))
   end
 
-  test "Community: free in development only; other environments need Pro capture" do
+  test "Community: free in development only; other environments need an extension" do
     assert Agentboard::Capture.enabled_for_env?("development")
     refute Agentboard::Capture.enabled_for_env?("test"), "staging-like environments are a Pro feature"
     get "/shop"
     assert_nil widget_config
-    with_pro(:capture)
+    with_features(:capture)
     assert Agentboard::Capture.enabled_for_env?("test")
   end
 
   test "the widget is injected into host pages with route and rendered templates, never into AgentBoard" do
-    with_pro(:capture)
+    with_features(:capture)
     get "/shop"
     assert_response :success
     cfg = widget_config
@@ -40,7 +40,7 @@ class CaptureTest < ActionDispatch::IntegrationTest
   end
 
   test "a capture becomes a ticket with sanitized context, criterion and artifact" do
-    with_pro(:capture)
+    with_features(:capture)
     post "/agentboard/captures", as: :json, params: { capture: {
       title: "Total shows too many decimals", description: "See the second invoice", expected: "Totals show 2 decimals",
       kind: "bug", priority: 1, url: "http://localhost:3000/shop?token=secret123&page=2", route: "shop#index",
@@ -68,7 +68,7 @@ class CaptureTest < ActionDispatch::IntegrationTest
   end
 
   test "agents get the captured templates first in their context" do
-    with_pro(:capture)
+    with_features(:capture)
     FileUtils.mkdir_p(File.join(@repo_dir, "app/views/shop"))
     File.write(File.join(@repo_dir, "app/views/shop/_invoice.html.erb"), "<div class=\"invoice\"></div>")
     git!("add", ".")
@@ -77,23 +77,6 @@ class CaptureTest < ActionDispatch::IntegrationTest
     ticket = Agentboard::Ticket.find_by_key!(response.parsed_body["key"])
     pkg = Agentboard::ContextBuilder.call(ticket: ticket, repository: @project.repository)
     assert_equal "app/views/shop/_invoice.html.erb", pkg.files.first
-  end
-
-  test "screenshots are a Pro feature and must be real PNGs" do
-    png = "data:image/png;base64," + Base64.strict_encode64("\x89PNG\r\n\x1A\n".b + "fakepixels")
-    Agentboard.config.settings["capture"]["environments"] = %w[development test]
-    with_pro(:capture, :team_mode)
-    post "/agentboard/captures", as: :json, params: { capture: { title: "With shot", screenshot: png } }
-    assert_response :created
-    ticket = Agentboard::Ticket.find_by_key!(response.parsed_body["key"])
-    shot = ticket.artifacts.find_by!(kind: "screenshot")
-    path = shot.uri.delete_prefix("file:")
-    assert_equal "600", format("%o", File.stat(path).mode & 0o777)
-    get "/agentboard/captures/#{shot.id}/screenshot"
-    assert_equal "image/png", response.media_type
-
-    post "/agentboard/captures", as: :json, params: { capture: { title: "Bad shot", screenshot: "data:image/png;base64," + Base64.strict_encode64("GIF89a") } }
-    assert_response :unprocessable_entity
   end
 
   test "the capture endpoint does not exist when capture is disabled" do

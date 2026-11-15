@@ -9,18 +9,6 @@ class ObservabilityTest < ActiveSupport::TestCase
     refute_includes rec["message"], "ghp_"
   end
 
-  test "metrics come from persisted records; unknown values are nil, not zero" do
-    m = Agentboard::Pro::Metrics.snapshot(@project)
-    assert_nil m[:queue_wait_median]
-    assert_nil m[:approval_latency_median]
-    t = create_ticket
-    run_execution(Agentboard::Executions.enqueue!(ticket: t, provider_key: "fake", actor: human))
-    FileUtils.mkdir_p(Agentboard.config.workspace_path.join("stray-dir"))
-    m = Agentboard::Pro::Metrics.snapshot(@project)
-    refute_nil m[:queue_wait_median]
-    assert_equal 1, m[:orphan_worktrees]
-  end
-
   test "retention removes provider output events but keeps the audit trail" do
     t = create_ticket
     e = run_execution(Agentboard::Executions.enqueue!(ticket: t, provider_key: "fake", actor: human))

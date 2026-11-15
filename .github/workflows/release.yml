@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v0.3.0 to release. Both gems must carry the tag's version.
+# Push a tag like v0.3.0 to release agentboard to RubyGems.org.
 on:
   push:
     tags: ["v*"]
@@ -20,8 +20,7 @@ jobs:
       - name: Versions match the tag
         run: |
           core=$(ruby -Ilib -e 'require "agentboard/version"; print Agentboard::VERSION')
-          pro=$(ruby -Ipro/lib -e 'require "agentboard/pro/version"; print Agentboard::Pro::VERSION')
-          test "v$core" = "$GITHUB_REF_NAME" && test "$core" = "$pro" || { echo "core=$core pro=$pro tag=$GITHUB_REF_NAME"; exit 1; }
+          test "v$core" = "$GITHUB_REF_NAME" || { echo "core=$core tag=$GITHUB_REF_NAME"; exit 1; }
       - run: git config --global user.name CI && git config --global user.email ci@example.com && git config --global init.defaultBranch main
       - run: cd test/dummy && RAILS_ENV=test bin/rails db:prepare
       - run: bin/rails test
@@ -44,20 +43,3 @@ jobs:
           bundler-cache: true
       - uses: rubygems/release-gem@v1
 
-  # Commercial extension → the private gem server on the product site.
-  publish-pro:
-    needs: verify
-    runs-on: ubuntu-latest
-    environment: pro-gems          # secrets: GEMS_UPLOAD_URL, GEMS_UPLOAD_TOKEN
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "4.0"
-      - name: Build agentboard-pro
-        run: cd pro && gem build agentboard-pro.gemspec -o ../agentboard-pro.gem
-      - name: Upload to the private gem server
-        run: |
-          curl --fail-with-body -sS -X POST \
-            -H "Authorization: Bearer ${{ secrets.GEMS_UPLOAD_TOKEN }}" \
-            -F "file=@agentboard-pro.gem" "${{ secrets.GEMS_UPLOAD_URL }}"

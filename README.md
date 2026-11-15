@@ -259,6 +259,11 @@ bin/test-and-commit                    # commits only when both suites are green
 cd test/dummy && bin/rails server      # dashboard on http://localhost:3000/agentboard
 ```
 
+Extensions and adapters can reuse the test kit: `require "agentboard/testing"`, call
+`Agentboard::Testing.prepare_database!` and include `Agentboard::Testing::Helpers` (a
+throwaway Git repository and project per test, plus `with_features(:capture)` to exercise
+feature-gated code).
+
 The suite covers units, services, acceptance scenarios AT-01…AT-15, security negatives
 (prompt injection, forged webhooks, path traversal, approval replay), real provider
 fixtures and container isolation. With Docker running, it also uses a real container.

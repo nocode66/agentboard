@@ -10,10 +10,7 @@ class WorkflowEngineTest < ActiveSupport::TestCase
       - { id: test, type: command, command: rails_test, depends_on: [implement] }
       - { id: review, type: agent, provider: fake, action: review, depends_on: [test] }
       - { id: approval, type: human_approval, depends_on: [review] }
-      - { id: fix, type: agent, provider: fake, action: fix_tests, depends_on: [test], condition: "steps.test.status == 'failed'" }
   Y
-
-  setup { with_pro(:advanced_workflows) }
 
   def drive(run, until_status:, timeout: 60)
     deadline = Time.now + timeout
@@ -33,7 +30,7 @@ class WorkflowEngineTest < ActiveSupport::TestCase
     run = Agentboard::WorkflowEngine.start!(definition: definition, ticket: t, actor: human)
     run = drive(run, until_status: "waiting_for_approval")
     steps = run.current_steps
-    assert_equal %w[succeeded succeeded succeeded succeeded waiting skipped], %w[plan implement test review approval fix].map { |k| steps[k].status }
+    assert_equal %w[succeeded succeeded succeeded succeeded waiting], %w[plan implement test review approval].map { |k| steps[k].status }
     impl_head = steps["implement"].output["head_sha"]
     assert impl_head
     assert @project.repository.resolve_commit(impl_head), "handoff head must exist in the repository"

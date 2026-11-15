@@ -26,21 +26,6 @@ class CliTest < ActiveSupport::TestCase
     assert Agentboard::AgentSession.exists?(external_session_id: "cli-codex-1")
   end
 
-  test "support bundle is written privately, redacted and without ticket contents" do
-    out_file = File.join(Dir.mktmpdir, "bundle.json")
-    cli("ticket", "create", "Top secret roadmap item", "--criteria", "x")
-    _o, _e, st = cli("support-bundle", "-o", out_file)
-    assert_equal 4, st.exitstatus, "support bundle is a Pro (governance) feature"
-    _o, err, st = cli("support-bundle", "-o", out_file, license: with_pro(:governance))
-    assert st.success?, err
-    assert_equal "600", format("%o", File.stat(out_file).mode & 0o777)
-    body = File.read(out_file)
-    refute_includes body, "Top secret roadmap item"
-    assert JSON.parse(body)["doctor"].any?
-  ensure
-    Agentboard::Project.where(root_path: DUMMY).destroy_all rescue nil
-  end
-
   test "hook ingest never fails the provider, even with garbage input" do
     _o, _e, st = cli("hook", "ingest", "--provider", "claude", "--event", "Stop", stdin: "not json")
     assert st.success?

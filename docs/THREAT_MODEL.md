@@ -34,7 +34,7 @@ Scope: the embedded (local-first) edition. A team or hosted edition needs its ow
 
 ## Licensing (Pro)
 
-- Licences are Ed25519-signed by the vendor. Only public keys ship (`pro/keys/`), and the
+- Licences are Ed25519-signed by the vendor. Only public keys ship (`keys/` in the `agentboard-pro` gem), and the
   private key never enters the repository. A test key is honoured only under
   `RAILS_ENV=test`.
 - Licensing is a commercial control, not a security boundary. The core is MIT and runs

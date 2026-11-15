@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Public test kit `agentboard/testing` (`Agentboard::Testing.prepare_database!`,
+  `Agentboard::Testing::Helpers`, `with_features`) for extensions and adapters.
+- `agentboard-pro` and the product site now live in their own repositories; this
+  repository contains only the MIT core.
+
+## 0.2.0 — 2026-11-15 (first public release on RubyGems.org)
+
 - **Open core (decision 35.2 #6):** a new `agentboard-pro` gem (`pro/`) holds team mode,
   advanced workflows, governance and the GitHub integration. Ed25519 licences are verified
   offline. Expiry gives 14 days of grace, then Pro features stop; data is never affected.
@@ -33,7 +40,7 @@
 - **Core:** extension registry and hooks (`Agentboard::Extensions`), `session.manage`
   permission, edition shown in `doctor` and the dashboard.
 
-## 0.2.0
+## 0.2.0 development milestones
 
 - **F21 GitHub:** signed webhooks, PR association by repository, branch and SHA, and
   merge-aware completion (AT-11). Manual PR links are verified against local Git history.

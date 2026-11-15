@@ -18,6 +18,9 @@ Gem::Specification.new do |spec|
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["documentation_uri"] = "https://agent-board.live/docs"
+  spec.metadata["source_code_uri"] = "https://github.com/nocode66/agentboard"
+  spec.metadata["changelog_uri"] = "https://github.com/nocode66/agentboard/blob/main/CHANGELOG.md"
+  spec.metadata["bug_tracker_uri"] = "https://github.com/nocode66/agentboard/issues"
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
     Dir["{app,config,db,lib,exe}/**/*", "MIT-LICENSE", "Rakefile", "README.md", "CHANGELOG.md"]

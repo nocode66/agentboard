@@ -12,7 +12,3 @@
 .DS_Store
 /test/dummy/db/schema.rb
 /test/dummy/log/*
-/site/storage/*
-/site/log/*
-/site/tmp/*
-/site/db/*.sqlite3*
