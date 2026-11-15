@@ -1,0 +1,24 @@
+<%# locals: definition (Workflows::Definition), steps (hash key => WorkflowStep or nil) %>
+<% depth = {} %>
+<% definition.topological_order.each { |id| s = definition.step(id); depth[id] = s.depends_on.map { |d| depth[d] + 1 }.max || 0 } %>
+<% layers = depth.group_by { |_, d| d }.sort.map { |_, ids| ids.map(&:first) } %>
+<% type_icons = { "agent" => "bot", "command" => "terminal", "verification" => "flask", "human_approval" => "shield", "git_commit" => "commit", "git_pull_request" => "branch", "condition" => "workflow", "external" => "link" } %>
+<div class="dag">
+  <% layers.each do |ids| %>
+    <div class="dag-layer">
+      <% ids.each do |id| %>
+        <% s = definition.step(id); st = steps && steps[id] %>
+        <div class="dag-node st-<%= st&.status || "idle" %>">
+          <div class="type"><%= icon(type_icons.fetch(s.type, "dot"), size: 11) %><%= s.type.tr("_", " ") %></div>
+          <div class="name"><%= s.id %></div>
+          <div class="row" style="gap:6px;font-size:11.5px;color:var(--muted)">
+            <% if s.provider %><%= provider_avatar(s.provider, size: 16) %><%= s.action %><% elsif s.command %><code><%= s.command %></code><% end %>
+            <% if st %><span style="margin-left:auto"><%= execution_pill(st.status) %></span><% end %>
+          </div>
+          <% if s.condition %><div class="faint mono" style="font-size:10.5px;margin-top:5px">if <%= s.condition %></div><% end %>
+          <% if st && st.attempt > 1 %><div class="faint" style="font-size:11px;margin-top:3px">attempt <%= st.attempt %></div><% end %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

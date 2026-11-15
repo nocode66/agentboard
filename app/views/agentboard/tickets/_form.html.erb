@@ -1,0 +1,38 @@
+<%= form_with model: ticket, url: (ticket.persisted? ? ticket_path(ticket) : tickets_path), scope: :ticket, method: (ticket.persisted? ? :patch : :post) do |f| %>
+  <% if ticket.persisted? %><%= hidden_field_tag :lock_version, ticket.lock_version %><% end %>
+  <div class="card">
+    <div class="card-body stack gap-lg">
+      <%= f.text_field :title, class: "input input-title", placeholder: "Ticket title", required: true, autofocus: true, maxlength: 255 %>
+      <div class="field">
+        <label for="ticket_description">Description</label>
+        <%= f.text_area :description, class: "textarea", rows: 7, placeholder: "What needs to happen, and why? Agents treat this as untrusted data, not as instructions that change policy." %>
+      </div>
+      <% unless ticket.persisted? %>
+        <div class="field">
+          <label for="ticket_criteria">Acceptance criteria <span class="faint" style="font-weight:400">— one per line</span></label>
+          <%= f.text_area :criteria, class: "textarea", rows: 4, placeholder: "Users can reset their password from the login page\nReset links expire after 30 minutes" %>
+          <span class="hint">A ticket needs at least one criterion before it can move to Ready.</span>
+        </div>
+      <% end %>
+      <div class="form-grid">
+        <div class="field"><label>Type</label><%= f.select :kind, Agentboard::Ticket::KINDS.map { |k| [k.capitalize, k] }, {}, class: "select" %></div>
+        <div class="field"><label>Priority</label><%= f.select :priority, Agentboard::Ticket::PRIORITIES.map { |v, l| [l, v] }, {}, class: "select" %></div>
+        <% if (milestones = current_project.milestones.where(status: "open").order(:target_date)).any? %>
+          <div class="field"><label>Milestone</label><%= f.select :milestone_id, milestones.map { |m| [m.name, m.id] }, { include_blank: "None" }, class: "select" %></div>
+        <% end %>
+        <% if params[:parent].present? && (parent = current_project.tickets.find_by(id: params[:parent])) %>
+          <%= f.hidden_field :parent_id, value: parent.id %>
+          <div class="field"><label>Subtask of</label><div class="input" style="display:flex;align-items:center"><%= parent.key %> — <%= parent.title.truncate(30) %></div></div>
+        <% end %>
+        <div class="field"><label>Labels</label><%= f.text_field :labels, value: Array(ticket.labels).join(", "), class: "input", placeholder: "auth, api" %></div>
+        <% unless ticket.persisted? %>
+          <div class="field"><label>Start in</label><%= f.select :status, [["Backlog", "backlog"], ["Ready", "ready"]], {}, class: "select" %></div>
+        <% end %>
+      </div>
+    </div>
+    <div class="modal-foot" style="border-radius:0 0 14px 14px">
+      <%= link_to "Cancel", (ticket.persisted? ? ticket_path(ticket) : board_path), class: "btn btn-ghost" %>
+      <%= f.button class: "btn btn-primary" do %><%= icon("check", size: 14) %> <%= ticket.persisted? ? "Save changes" : "Create ticket" %><% end %>
+    </div>
+  </div>
+<% end %>

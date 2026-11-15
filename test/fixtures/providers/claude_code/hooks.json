@@ -1,0 +1,7 @@
+{
+  "session_start": {"session_id":"abc-123","transcript_path":"/home/u/.claude/x.jsonl","cwd":"/repo","hook_event_name":"SessionStart","source":"startup"},
+  "tool_start": {"session_id":"abc-123","hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"app/models/invoice.rb","new_string":"API_KEY=sk-ant-api03-SECRETSECRETSECRETSECRET"}},
+  "tool_end": {"session_id":"abc-123","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"bin/rails test test/models/invoice_test.rb"},"tool_response":{"stdout":"lots of output"}},
+  "normal_exit": {"session_id":"abc-123","hook_event_name":"SessionEnd","reason":"exit"},
+  "unknown_event": {"session_id":"abc-123","hook_event_name":"SomethingNew"}
+}

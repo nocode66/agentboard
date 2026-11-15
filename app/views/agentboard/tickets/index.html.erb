@@ -1,0 +1,51 @@
+<% content_for :title, "Backlog" %>
+<% content_for :crumbs do %><%= icon("list", size: 16, klass: "muted") %> <span>Backlog</span><% end %>
+<% content_for :actions do %>
+  <%= form_with url: tickets_path, method: :get, class: "search", data: { controller: "autosubmit", turbo_action: "replace" } do %>
+    <%= icon("search", size: 14) %>
+    <%= hidden_field_tag :status, @status if @status %>
+    <input class="input" type="search" name="q" value="<%= params[:q] %>" placeholder="Filter tickets…" data-hotkey="search" data-action="input->autosubmit#submit" autocomplete="off">
+  <% end %>
+  <%= link_to new_ticket_path, class: "btn btn-primary" do %><%= icon("plus", size: 14) %> New ticket<% end %>
+<% end %>
+
+<div class="tabs">
+  <%= link_to tickets_path(q: params[:q]), class: "tab #{"is-active" unless @status}" do %>All <span class="count"><%= @counts.values.sum %></span><% end %>
+  <% Agentboard::StateMachines::Ticket::STATES.each do |s| %>
+    <% next if @counts[s].to_i.zero? && @status != s %>
+    <%= link_to tickets_path(status: s, q: params[:q]), class: "tab #{"is-active" if @status == s}" do %>
+      <%= status_glyph(s) %> <%= Agentboard::StateMachines::Ticket::LABELS[s] %> <span class="count"><%= @counts[s].to_i %></span>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="card card-body-flush">
+  <% if @tickets.empty? %>
+    <div class="empty">
+      <%= icon("inbox", size: 28) %>
+      <strong>No tickets here yet</strong>
+      <span>Create a ticket, or let an agent pick up work through MCP.</span>
+      <%= link_to "Create ticket", new_ticket_path, class: "btn btn-primary mt-sm" %>
+    </div>
+  <% else %>
+    <table class="table">
+      <thead><tr><th style="width:34px"></th><th style="width:90px">Key</th><th>Title</th><th style="width:130px">Status</th><th style="width:120px">Criteria</th><th style="width:120px">Agent</th><th style="width:120px" class="right">Updated</th></tr></thead>
+      <tbody>
+        <% @tickets.each do |t| %>
+          <% done, total = t.criteria_progress %>
+          <% running = t.executions.find { |e| Agentboard::StateMachines::Execution::ACTIVE.include?(e.status) } %>
+          <% lease = t.leases.find { |l| l.released_at.nil? && l.expires_at > Time.current } %>
+          <tr>
+            <td><%= priority_icon(t.priority) %></td>
+            <td class="mono muted" style="font-size:12px"><%= link_to t.key, ticket_path(t) %></td>
+            <td><%= link_to ticket_path(t), class: "row-link" do %><span class="truncate" style="font-weight:550"><%= t.title %></span><%= kind_badge(t.kind) %><% t.labels.first(2).each do |l| %><span class="label-chip"><%= l %></span><% end %><% end %></td>
+            <td><%= status_pill(t.status) %></td>
+            <td><% if total.positive? %><span class="row"><%= meter(done, total) %><span class="muted"><%= done %>/<%= total %></span></span><% else %><span class="faint">—</span><% end %></td>
+            <td><% if running %><span class="row"><%= provider_avatar(running.provider_key, size: 20) %><span class="muted"><%= running.status.humanize.downcase %></span></span><% elsif lease %><span class="row"><%= avatar(lease.holder_label, kind: lease.agent_session_id ? "agent" : "human", size: 20) %><span class="muted truncate"><%= lease.holder_label %></span></span><% else %><span class="faint">—</span><% end %></td>
+            <td class="right muted" style="font-size:12px"><%= ago(t.updated_at) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</div>

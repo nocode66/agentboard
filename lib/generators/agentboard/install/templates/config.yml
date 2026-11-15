@@ -1,0 +1,81 @@
+# AgentBoard configuration — desired behaviour. Actual provider capabilities are detected.
+project:
+  name: # defaults to the repository directory name
+  key:  # ticket prefix, e.g. AB (defaults to initials of the name)
+
+runtime:
+  mode: local
+  max_concurrent_executions: 1
+  workspace: .agentboard/worktrees
+  execution_timeout_seconds: 3600
+  cancel_grace_seconds: 5
+
+providers:
+  claude: { enabled: true, passive: true, active: true }
+  codex: { enabled: true, passive: true, active: true }
+  cursor: { enabled: false, passive: true, active: false }
+  fake: { enabled: true, passive: true, active: true }
+
+security:
+  require_review: true
+  allow_production_commands: false
+  # Agents run as your OS user; Git worktrees are NOT sandboxes. Real providers (claude,
+  # codex) only run in active mode once you explicitly trust local execution:
+  trusted_local_execution: false
+  sandbox: none        # container: run verification (and, with sandbox.agents, agents) in Docker
+
+# Container isolation (security.sandbox: container). `agentboard sandbox init && agentboard sandbox build`
+# sandbox:
+#   runtime: docker
+#   image: agentboard-agent:<project>        # verification commands, --network none
+#   agents: true                             # also run agents in containers
+#   agent_image: agentboard-agent:<project>  # internal network + egress allowlist proxy
+#   egress_allow: []                         # extra host:port pairs beyond provider APIs
+#   credential_env: [ANTHROPIC_API_KEY, OPENAI_API_KEY]   # forwarded by name only
+#   claude_config_dir: ~/.agentboard-sandbox/claude       # dedicated (not your personal) login
+
+completion:
+  require_criteria_verified: true
+  require_checks: true
+  require_approval: true
+  # when_linked: tickets with an open/merged PR need that PR merged on the reviewed head;
+  # tickets without a PR complete on criteria + checks + approval. Also: always | never.
+  require_merged_pr: when_linked
+
+# Approved command catalog. Workflows and agents reference these by name; argv is executed
+# directly (no shell). Results are bound to the exact commit they ran against.
+verification_commands:
+  rails_test:
+    argv: ["bin/rails", "test"]
+    timeout_seconds: 900
+    required: true
+  rubocop:
+    argv: ["bin/rubocop"]
+    timeout_seconds: 600
+    required: false
+
+# In-app capture widget (Alt+Shift+A on any page). Development is free; other environments
+# (e.g. staging for QA) and screenshots need AgentBoard Pro (feature: capture).
+capture:
+  enabled: true
+  environments: [development]
+
+retention:
+  raw_log_days: 30
+  worktree_days: 7
+  provider_output_event_days: 30
+
+# Git hosting (AgentBoard Pro, feature git_hosting). Point a webhook for pull/merge
+# requests at /agentboard/webhooks/<github|gitlab|bitbucket> and export the secret in the
+# variable named below. Without a secret the endpoint does not exist.
+git_hosts:
+  default:            # github | gitlab | bitbucket — detected from `origin` when empty
+  github:
+    secret_env: AGENTBOARD_GITHUB_WEBHOOK_SECRET    # HMAC (X-Hub-Signature-256)
+  gitlab:
+    secret_env: AGENTBOARD_GITLAB_WEBHOOK_TOKEN     # X-Gitlab-Token
+    base_url: https://gitlab.com
+    token_env: GITLAB_TOKEN                         # for opening merge requests
+  bitbucket:
+    secret_env: AGENTBOARD_BITBUCKET_WEBHOOK_SECRET # HMAC (X-Hub-Signature)
+    token_env: BITBUCKET_TOKEN                      # repository access token

@@ -1,0 +1,28 @@
+<% content_for :title, "Workflow run" %>
+<% content_for :crumbs do %><%= link_to "Workflows", workflows_path %><span class="sep">/</span><%= link_to @run.ticket.key, ticket_path(@run.ticket) %><span class="sep">/</span><span><%= @run.workflow_definition.name %></span><% end %>
+<% content_for :actions do %>
+  <% unless @run.terminal? %><%= button_to cancel_workflow_run_path(@run), class: "btn btn-sm btn-danger", form: { style: "display:inline" } do %><%= icon("stop", size: 12) %> Cancel run<% end %><% end %>
+<% end %>
+<div class="row mb"><h1><%= @run.workflow_definition.name %></h1><%= execution_pill(@run.status) %><span class="muted">v<%= @run.workflow_definition.version %> · started <%= ago(@run.started_at) %></span></div>
+<% if @run.status == "waiting_for_approval" %>
+  <div class="callout callout-warn mb"><%= icon("shield", size: 16) %><div>Waiting for a human approval. <%= link_to "Review approvals →", approvals_path, class: "link" %></div></div>
+<% end %>
+<div class="card mb"><div class="card-body"><%= render "agentboard/shared/dag", definition: @definition, steps: @steps %></div></div>
+<div class="card card-body-flush">
+  <table class="table table-compact">
+    <thead><tr><th>Step</th><th>Attempt</th><th>Status</th><th>Head</th><th>Execution</th><th>Error</th><th class="right">Finished</th></tr></thead>
+    <tbody>
+      <% @all_steps.each do |s| %>
+        <tr>
+          <td class="mono"><%= s.step_key %> <span class="faint"><%= s.step_type %></span></td>
+          <td><%= s.attempt %></td>
+          <td><%= execution_pill(s.status) %></td>
+          <td><%= sha_tag(s.output["head_sha"]) %></td>
+          <td><% if (ex = s.executions.max_by(&:created_at)) %><%= link_to "exec-#{ex.attempt}", execution_path(ex), class: "link" %><% else %><span class="faint">—</span><% end %></td>
+          <td class="muted" style="font-size:12px"><%= s.error.to_s.truncate(80) %><% if s.available_at && s.status == "pending" %>retry <%= ago(s.available_at).to_s.sub(" ago", "").html_safe %><% end %></td>
+          <td class="right muted"><%= ago(s.finished_at) if s.finished_at %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= [content_for(:title), "AgentBoard"].compact.join(" · ") %></title>
+  <%= csrf_meta_tags %>
+  <meta name="turbo-refresh-method" content="morph">
+  <meta name="turbo-refresh-scroll" content="preserve">
+  <meta name="color-scheme" content="light dark">
+  <script>(function(){var t=localStorage.getItem("agentboard-theme");if(t)document.documentElement.dataset.theme=t})()</script>
+  <link rel="stylesheet" href="<%= asset_url("agentboard.css") %>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%235e5ce6'/><path d='M9 22V10h4v12zm5 0V14h4v8zm5 0v-6h4v6z' fill='white'/></svg>">
+  <script type="importmap">
+    <%= raw({ imports: {
+      "@hotwired/turbo" => asset_url("turbo.js"),
+      "@hotwired/stimulus" => asset_url("stimulus.js"),
+      "agentboard" => asset_url("agentboard.js")
+    } }.to_json) %>
+  </script>
+  <script type="module">import "agentboard"</script>
+</head>
+<body class="ab" data-controller="hotkeys theme">
+  <div class="shell" data-controller="pulse" data-pulse-url-value="<%= pulse_path %>">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark"><%= icon("kanban", size: 15, stroke: 2.4) %></span>
+        <div>
+          <div class="brand-name">AgentBoard</div>
+          <div class="brand-project"><span class="project-key"><%= current_project.key %></span><span class="truncate"><%= current_project.name %></span></div>
+        </div>
+      </div>
+      <%= link_to new_ticket_path, class: "btn btn-sm", style: "margin: 0 4px 6px; justify-content:flex-start", data: { hotkey: "new-ticket" } do %>
+        <%= icon("plus", size: 14) %> New ticket <kbd style="margin-left:auto">C</kbd>
+      <% end %>
+      <div class="nav-section">Work</div>
+      <%= nav_link "Board", board_path, "kanban", active: controller_name == "board", kbd: "G B" %>
+      <%= nav_link "Backlog", tickets_path, "list", active: controller_name == "tickets" && action_name == "index", kbd: "G L" %>
+      <%= nav_link "Milestones", milestones_path, "flag", active: controller_name == "milestones" %>
+      <%= nav_link "Approvals", approvals_path, "shield", active: controller_name == "approvals", count: pending_approvals_count %>
+      <div class="nav-section">Agents</div>
+      <%= nav_link "Executions", executions_path, "terminal", active: controller_name == "executions", kbd: "G E" %>
+      <%= nav_link "Workflows", workflows_path, "workflow", active: %w[workflows workflow_runs].include?(controller_name), kbd: "G W" %>
+      <%= nav_link "Agents", agents_path, "bot", active: controller_name == "agents", kbd: "G A" %>
+      <div class="nav-section">Insight</div>
+      <%= nav_link "Analytics", analytics_path, "chart", active: controller_name == "analytics" %>
+      <%= nav_link "Settings", settings_path, "settings", active: controller_name == "settings" %>
+      <span hidden>
+        <a href="<%= board_path %>" data-hotkey-target="board"></a><a href="<%= tickets_path %>" data-hotkey-target="backlog"></a>
+        <a href="<%= executions_path %>" data-hotkey-target="executions"></a><a href="<%= agents_path %>" data-hotkey-target="agents"></a>
+        <a href="<%= workflows_path %>" data-hotkey-target="workflows"></a><a href="<%= approvals_path %>" data-hotkey-target="approvals"></a>
+      </span>
+      <div class="sidebar-footer">
+        <% daemon = (@daemon ||= Agentboard::Runtime::DaemonControl.status) %>
+        <%= link_to executions_path, class: "runtime-chip #{daemon[:running] ? "is-on" : ""}", title: daemon[:running] ? "Runtime daemon pid #{daemon[:pid]}" : "Start with: bundle exec agentboard daemon start" do %>
+          <span class="led"></span>
+          <span class="grow"><%= daemon[:running] ? "Runtime online" : "Runtime offline" %></span>
+          <span class="muted"><span id="runtime-active"><%= daemon.dig(:health, "active") || 0 %></span> active</span>
+        <% end %>
+        <div class="row" title="<%= current_actor.role %>">
+          <%= avatar(current_actor.label, size: 22) %>
+          <span class="truncate" style="font-size:12.5px;font-weight:550"><%= current_actor.label %></span>
+          <span class="faint" style="font-size:11px;margin-left:auto"><%= current_actor.role %></span>
+        </div>
+        <div class="row" style="justify-content:space-between">
+          <span class="faint" style="font-size:11.5px">v<%= Agentboard::VERSION %> · <%= Agentboard::Extensions.extensions.key?("agentboard-pro") && Agentboard::Extensions.extensions.values.any? { |e| e.enabled_features.any? } ? "Pro" : "Community" %></span>
+          <button class="btn btn-ghost btn-sm btn-icon" data-action="theme#toggle" title="Toggle theme"><%= icon("moon", size: 14) %></button>
+        </div>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <nav class="crumbs"><%= yield :crumbs %></nav>
+        <div class="topbar-actions"><%= yield :actions %></div>
+      </header>
+      <% edition_notices.each do |notice| %>
+        <div class="callout callout-warn" style="margin:12px 22px 0"><%= icon("alert", size: 16) %><div><%= notice %></div></div>
+      <% end %>
+      <%= yield :toolbar %>
+      <%= content_for?(:bare) ? yield : tag.div(yield, class: "content") %>
+    </main>
+  </div>
+  <div class="toasts">
+    <% flash.each do |kind, message| %>
+      <div class="toast toast-<%= kind == "alert" ? "alert" : "notice" %>" data-controller="toast">
+        <%= icon(kind == "alert" ? "alert" : "check", size: 16) %>
+        <div class="grow"><%= message %></div>
+        <button class="btn btn-ghost btn-sm btn-icon" data-action="toast#dismiss" aria-label="Dismiss"><%= icon("x", size: 13) %></button>
+      </div>
+    <% end %>
+  </div>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<% content_for :title, "Approvals" %>
+<% content_for :crumbs do %><%= icon("shield", size: 16, klass: "muted") %> <span>Approvals</span><% end %>
+<div class="content-narrow">
+  <div class="page-head"><div><h1>Approvals</h1><p>Each approval is bound to an exact action digest and commit. Any code change invalidates it.</p></div></div>
+  <div class="section-title">Pending · <%= @pending.size %></div>
+  <% if @pending.empty? %>
+    <div class="card"><div class="empty"><%= icon("shield", size: 26) %><strong>Nothing waiting for you</strong><span>Privileged actions and reviews that need a human will show up here.</span></div></div>
+  <% else %>
+    <div class="stack"><% @pending.each do |a| %><%= render "approval", approval: a %><% end %></div>
+  <% end %>
+  <div class="section-title mt">History</div>
+  <div class="card card-body-flush">
+    <% if @decided.empty? %><div class="empty" style="padding:20px">No decisions yet.</div><% else %>
+      <table class="table table-compact">
+        <thead><tr><th>Action</th><th>Ticket</th><th>Decision</th><th>Head</th><th>By</th><th class="right">When</th></tr></thead>
+        <tbody>
+          <% @decided.each do |a| %>
+            <tr>
+              <td><%= a.action_kind.humanize %></td>
+              <td><% if (tk = a.ticket) %><%= link_to tk.key, ticket_path(tk), class: "link mono" %><% end %></td>
+              <td><%= execution_pill(a.decision) %><% if a.decision_reason.present? %> <span class="muted" style="font-size:12px"><%= a.decision_reason.truncate(60) %></span><% end %></td>
+              <td><%= sha_tag(a.head_sha) %></td>
+              <td class="muted"><%= a.decided_by || "system" %></td>
+              <td class="right muted"><%= ago(a.decided_at || a.updated_at) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </div>
+</div>

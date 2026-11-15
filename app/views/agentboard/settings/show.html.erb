@@ -1,0 +1,33 @@
+<% content_for :title, "Settings" %>
+<% content_for :crumbs do %><%= icon("settings", size: 16, klass: "muted") %> <span>Settings</span><% end %>
+<div class="content-narrow">
+  <div class="page-head"><div><h1>Settings & diagnostics</h1><p>Edit <code>config/agentboard.yml</code> or <code>.agentboard/config.yml</code>; this page is read-only.</p></div></div>
+  <div class="card mb">
+    <div class="card-head"><h2><%= icon("shield", size: 15) %> Doctor</h2></div>
+    <div class="card-body-flush">
+      <% @doctor.each do |c| %>
+        <div class="doctor-row"><span class="<%= c.status %>"><%= icon({ "ok" => "check", "warn" => "alert", "fail" => "x" }[c.status], size: 15, stroke: 2.5) %></span><strong style="font-weight:550"><%= c.name %></strong><span class="muted"><%= c.detail %></span></div>
+      <% end %>
+    </div>
+  </div>
+  <div class="detail" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+    <div class="card"><div class="card-head"><h3>Security & completion policy</h3></div><div class="card-body">
+      <dl class="kv">
+        <% @config.security.each do |k, v| %><dt><%= k.humanize %></dt><dd><code><%= v.inspect %></code></dd><% end %>
+        <% @config.completion.each do |k, v| %><dt><%= k.humanize %></dt><dd><code><%= v.inspect %></code></dd><% end %>
+      </dl>
+    </div></div>
+    <div class="card"><div class="card-head"><h3>Approved command catalog</h3></div><div class="card-body-flush">
+      <% @config.verification_catalog.each do |c| %>
+        <div class="list-row"><strong class="mono" style="font-size:12.5px;width:110px"><%= c.name %></strong><code class="grow truncate"><%= c.argv.join(" ") %></code><span class="muted" style="font-size:12px"><%= c.required ? "required" : "optional" %> · <%= c.timeout_seconds %>s</span></div>
+      <% end %>
+    </div></div>
+    <div class="card"><div class="card-head"><h3>Runtime</h3></div><div class="card-body">
+      <dl class="kv"><% @config.runtime.each do |k, v| %><dt><%= k.humanize %></dt><dd><code><%= v.inspect %></code></dd><% end %></dl>
+    </div></div>
+    <div class="card"><div class="card-head"><h3>Event outbox</h3></div><div class="card-body">
+      <dl class="kv"><% %w[pending delivered dead].each do |s| %><dt><%= s.humanize %></dt><dd><%= @outbox[s].to_i %></dd><% end %></dl>
+      <p class="hint">At-least-once delivery with bounded retries; dead letters need attention.</p>
+    </div></div>
+  </div>
+</div>

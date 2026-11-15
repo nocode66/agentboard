@@ -1,0 +1,5 @@
+<% content_for :title, "Edit #{@ticket.key}" %>
+<% content_for :crumbs do %><%= link_to "Board", board_path %><span class="sep">/</span><%= link_to @ticket.key, ticket_path(@ticket) %><span class="sep">/</span><span>Edit</span><% end %>
+<div class="content-narrow" style="max-width:760px;margin:0 auto">
+  <%= render "form", ticket: @ticket %>
+</div>

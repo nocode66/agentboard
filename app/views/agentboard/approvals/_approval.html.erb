@@ -1,0 +1,27 @@
+<% ticket = approval.ticket %>
+<div class="stack-sm" style="padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:var(--surface)">
+  <div class="row">
+    <span class="pill pill-review"><span class="pill-dot"></span><%= approval.action_kind.humanize %></span>
+    <% if ticket %><%= link_to ticket.key, ticket_path(ticket), class: "link mono", style: "font-size:12px" %><% end %>
+    <span class="faint" style="margin-left:auto;font-size:11.5px"><%= ago(approval.created_at) %></span>
+  </div>
+  <% if approval.reason.present? %><div style="font-size:13px;white-space:pre-wrap"><%= approval.reason.truncate(600) %></div><% end %>
+  <% if (summary = approval.action_payload["summary"]).present? %><pre class="code-block" style="padding:8px 10px;font-size:11.5px"><%= summary.truncate(800) %></pre><% end %>
+  <% if approval.execution_id %><div class="hint"><%= link_to "Open execution →", execution_path(approval.execution_id), class: "link" %></div><% end %>
+  <div class="row muted" style="font-size:11.5px;flex-wrap:wrap">
+    <span>by <%= approval.requested_by %></span><span>·</span><span>head <%= sha_tag(approval.head_sha) %></span><span>·</span>
+    <span title="<%= approval.action_digest %>">digest <code><%= approval.action_digest[0, 10] %></code></span>
+    <% if approval.expires_at %><span>·</span><span>expires <%= ago(approval.expires_at).to_s.sub(" ago", "").html_safe %></span><% end %>
+  </div>
+  <% if !can?("approval.decide") %>
+    <div class="hint">Waiting for a <%= approval.required_role %>.</div>
+  <% elsif approval.requested_by == current_actor.label && Agentboard.feature?(:team_mode) && Agentboard.config.authenticate_with %>
+    <div class="hint">You requested this — another <%= approval.required_role %> must decide (separation of duties).</div>
+  <% else %>
+  <%= form_with url: approval_path(approval), method: :patch, class: "row" do %>
+    <input class="input" name="reason" placeholder="Note (optional)" style="height:28px">
+    <button name="decision" value="rejected" class="btn btn-sm btn-danger"><%= icon("x", size: 12) %> Reject</button>
+    <button name="decision" value="approved" class="btn btn-sm btn-success"><%= icon("check", size: 12) %> Approve</button>
+  <% end %>
+  <% end %>
+</div>

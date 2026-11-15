@@ -1,0 +1,33 @@
+<% content_for :title, "Executions" %>
+<% content_for :crumbs do %><%= icon("terminal", size: 16, klass: "muted") %> <span>Executions</span><% end %>
+<% unless @daemon[:running] %>
+  <div class="callout callout-warn mb"><%= icon("alert", size: 16) %><div><strong>The runtime daemon is not running.</strong> Queued executions wait until you start it:<br><code>bundle exec agentboard daemon start</code> — agents run in that separate process, so restarting the web server never kills them.</div></div>
+<% end %>
+<div class="tabs">
+  <%= link_to "All", executions_path, class: "tab #{"is-active" unless @status}" %>
+  <% %w[queued running verifying completed failed cancelled interrupted].each do |s| %>
+    <%= link_to s.humanize, executions_path(status: s), class: "tab #{"is-active" if @status == s}" %>
+  <% end %>
+</div>
+<div class="card card-body-flush">
+  <% if @executions.empty? %>
+    <div class="empty"><%= icon("terminal", size: 28) %><strong>No executions</strong><span>Open a ticket and start an agent, or run <code>bundle exec agentboard run <%= current_project.key %>-1 --provider fake</code>.</span></div>
+  <% else %>
+    <table class="table">
+      <thead><tr><th>Execution</th><th>Ticket</th><th>Status</th><th>Checks</th><th>Head</th><th>Duration</th><th class="right">Started</th></tr></thead>
+      <tbody>
+        <% @executions.each do |e| %>
+          <tr>
+            <td><%= link_to execution_path(e), class: "row-link" do %><%= provider_avatar(e.provider_key, size: 20) %><span><strong style="font-weight:550"><%= e.action.humanize %></strong> <span class="muted">#<%= e.attempt %></span></span><% end %></td>
+            <td><%= link_to e.ticket.key, ticket_path(e.ticket), class: "link mono", style: "font-size:12px" %> <span class="muted truncate" style="max-width:240px;display:inline-block;vertical-align:bottom"><%= e.ticket.title %></span></td>
+            <td><%= execution_pill(e.status) %><% if e.failure_code %> <span class="faint" style="font-size:11.5px"><%= e.failure_code %></span><% end %></td>
+            <td class="muted"><%= e.verification_results.any? ? "#{e.verification_results.count(&:passed?)}/#{e.verification_results.size}" : "—" %></td>
+            <td><%= sha_tag(e.head_sha) %></td>
+            <td class="muted"><%= duration(e.duration) %></td>
+            <td class="right muted"><%= ago(e.started_at || e.created_at) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</div>

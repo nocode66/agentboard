@@ -1,0 +1,49 @@
+#!/usr/bin/env ruby
+# Minimal stand-in for the docker CLI used by AgentBoard's container tests. It records every
+# invocation and, for `run --rm -i …`, executes the wrapped command locally with the
+# requested working directory and environment.
+require "json"
+# AgentBoard scrubs the environment of the docker CLI, so use a fixed location under TMPDIR.
+state = File.join(ENV.fetch("TMPDIR", "/tmp"), "agentboard-fake-docker")
+Dir.mkdir(state) unless Dir.exist?(state)
+log = File.join(state, "calls.jsonl")
+File.open(log, "a") { |f| f.puts(JSON.generate(ARGV)) }
+cmd = ARGV.first
+case cmd
+when "info" then puts "fake-27.0"
+when "network"
+  sub, *rest = ARGV[1..]
+  marker = File.join(state, "net-#{rest.last}")
+  case sub
+  when "inspect" then exit(File.exist?(marker) ? 0 : 1)
+  when "create" then File.write(marker, "1")
+  end
+when "inspect" then exit 1
+when "rm", "build" then exit 0
+when "run"
+  args = ARGV[1..]
+  exit 0 if args.include?("-d") # egress proxy container
+  with_value = %w[--name --label --network --memory --cpus --pids-limit --cap-drop --security-opt --tmpfs --user -v -w -e --network-alias --restart]
+  env = {}
+  cwd = nil
+  i = 0
+  while i < args.size
+    a = args[i]
+    if with_value.include?(a)
+      v = args[i + 1]
+      cwd = v if a == "-w"
+      if a == "-e"
+        k, val = v.split("=", 2)
+        env[k] = val.nil? ? ENV[k].to_s : val
+      end
+      i += 2
+    elsif a.start_with?("-")
+      i += 1
+    else
+      break # image
+    end
+  end
+  command = args[(i + 1)..]
+  base = ENV.to_h.slice("PATH", "LANG", "TMPDIR")
+  exec(base.merge(env), *command, chdir: cwd, unsetenv_others: true)
+end

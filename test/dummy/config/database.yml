@@ -1,0 +1,31 @@
+# Set DB=postgresql to run the suite against PostgreSQL (recommended for concurrent leases).
+<% if ENV["DB"] == "postgresql" %>
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  host: <%= ENV.fetch("PGHOST", "localhost") %>
+  username: <%= ENV["PGUSER"] %>
+  password: <%= ENV["PGPASSWORD"] %>
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 } %>
+
+development:
+  <<: *default
+  database: agentboard_development
+
+test:
+  <<: *default
+  database: agentboard_test
+<% else %>
+default: &default
+  adapter: sqlite3
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 } %>
+  timeout: 5000
+
+development:
+  <<: *default
+  database: storage/development.sqlite3
+
+test:
+  <<: *default
+  database: storage/test.sqlite3
+<% end %>

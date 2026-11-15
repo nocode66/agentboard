@@ -1,0 +1,49 @@
+<% content_for :title, "Workflows" %>
+<% content_for :crumbs do %><%= icon("workflow", size: 16, klass: "muted") %> <span>Workflows</span><% end %>
+<% content_for :actions do %>
+  <%= link_to workflows_path(sync: 1), class: "btn btn-sm" do %><%= icon("refresh", size: 13) %> Sync .agentboard/workflows<% end %>
+<% end %>
+<div class="detail" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+  <div class="stack">
+    <div class="card">
+      <div class="card-head"><h2><%= icon("layers", size: 15) %> Definitions</h2></div>
+      <div class="card-body-flush">
+        <% if @definitions.empty? %><div class="empty"><%= icon("workflow", size: 26) %><strong>No workflows yet</strong><span>Register one with the editor, or add YAML files to <code>.agentboard/workflows/</code>.</span></div><% end %>
+        <% @definitions.each do |name, versions| %>
+          <% latest = versions.first %>
+          <%= link_to workflow_path(latest), class: "list-row" do %>
+            <%= icon("workflow", size: 15, klass: "muted") %>
+            <span class="grow"><strong class="mono" style="font-size:13px"><%= name %></strong> <span class="muted">v<%= latest.version %> · <%= latest.definition["steps"].size %> steps</span></span>
+            <code title="<%= latest.digest %>"><%= latest.digest[0, 8] %></code>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2><%= icon("play", size: 15) %> Recent runs</h2></div>
+      <div class="card-body-flush">
+        <% if @runs.empty? %><div class="empty" style="padding:20px">No runs yet.</div><% end %>
+        <% @runs.each do |r| %>
+          <%= link_to workflow_run_path(r), class: "list-row" do %>
+            <span class="mono" style="font-size:12px"><%= r.ticket.key %></span>
+            <span class="grow truncate"><%= r.workflow_definition.name %> <span class="muted">v<%= r.workflow_definition.version %></span></span>
+            <span class="muted" style="font-size:12px"><%= r.steps.count { |s| s.status == "succeeded" } %>/<%= r.workflow_definition.definition["steps"].size %></span>
+            <%= execution_pill(r.status) %>
+            <span class="faint" style="font-size:12px"><%= ago(r.created_at) %></span>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <div class="card" data-controller="workflow-validator" data-workflow-validator-url-value="<%= validate_workflows_path %>">
+    <div class="card-head"><h2><%= icon("edit", size: 15) %> Editor</h2><span class="muted" style="margin-left:auto;font-size:12px">YAML · safe-loaded · validated as a DAG</span></div>
+    <%= form_with url: workflows_path, class: "card-body stack" do %>
+      <textarea name="yaml" class="textarea code" spellcheck="false" data-workflow-validator-target="input" data-action="input->workflow-validator#schedule keydown->workflow-validator#indent"><%= @yaml %></textarea>
+      <pre class="validator" data-workflow-validator-target="output">Validating…</pre>
+      <div class="row">
+        <span class="hint grow">Commands reference the approved catalog by name — never shell strings.</span>
+        <button class="btn btn-primary" <%= "disabled" unless can?("workflow.manage") %>><%= icon("check", size: 14) %> Register version</button>
+      </div>
+    <% end %>
+  </div>
+</div>

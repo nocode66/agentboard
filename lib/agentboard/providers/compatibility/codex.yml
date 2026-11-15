@@ -1,0 +1,10 @@
+provider: codex
+adapter_version: 1
+validated:
+  - binary_version: "0.156.1"
+    status: flags_checked
+    # Real `codex exec --json` output captured; the run was rejected by the account's model
+    # policy (model_not_found), so only the failure path is validated against real output.
+    real_fixtures: [test/fixtures/providers/codex/real_0.156.1_model_rejected.jsonl]
+    capabilities: [mcp, active_execution, structured_events, streaming, cancellation]
+    fixtures: test/fixtures/providers/codex

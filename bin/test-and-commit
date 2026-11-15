@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Commits only when the full suite passes on SQLite (and PostgreSQL when available).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+out=$(bin/rails test 2>&1 | grep -E "^[0-9]+ runs," | tail -1); echo "sqlite:     $out"
+[[ "$out" == *" 0 failures, 0 errors"* ]] || { echo "SQLite suite failed; not committing"; exit 1; }
+if pg_isready -q -h "${PGHOST:-/tmp}" 2>/dev/null; then
+  out=$(DB=postgresql PGHOST="${PGHOST:-/tmp}" bin/rails test 2>&1 | grep -E "^[0-9]+ runs," | tail -1); echo "postgresql: $out"
+  [[ "$out" == *" 0 failures, 0 errors"* ]] || { echo "PostgreSQL suite failed; not committing"; exit 1; }
+fi
+git add -A
+git commit -q -F - && git log --oneline -1

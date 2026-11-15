@@ -1,0 +1,6 @@
+{"type":"system","subtype":"init","session_id":"0b6c7f9e-1111-4a2b-9c3d-123456789abc","cwd":"/tmp/wt","model":"claude-sonnet","tools":["Read","Edit","Bash"]}
+{"type":"assistant","session_id":"0b6c7f9e-1111-4a2b-9c3d-123456789abc","message":{"content":[{"type":"thinking","thinking":"private"},{"type":"text","text":"I'll add the total method."},{"type":"tool_use","id":"toolu_1","name":"Edit","input":{"file_path":"app/models/invoice.rb","old_string":"0","new_string":"items.sum(&:amount)"}}]}}
+{"type":"user","session_id":"0b6c7f9e-1111-4a2b-9c3d-123456789abc","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok","is_error":false}]}}
+{"type":"result","subtype":"success","is_error":false,"session_id":"0b6c7f9e-1111-4a2b-9c3d-123456789abc","num_turns":3,"result":"Implemented Invoice#total","total_cost_usd":0.0123,"usage":{"input_tokens":1200,"output_tokens":340},"permission_denials":[{"tool_name":"Bash","tool_use_id":"toolu_2"}]}
+{"type":"brand_new_event","session_id":"0b6c7f9e-1111-4a2b-9c3d-123456789abc"}
+not json at all

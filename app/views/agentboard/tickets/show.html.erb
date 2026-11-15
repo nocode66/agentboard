@@ -1,0 +1,343 @@
+<% t = @ticket %>
+<% content_for :title, "#{t.key} #{t.title}" %>
+<% content_for :crumbs do %>
+  <%= link_to "Board", board_path %><span class="sep">/</span><span class="mono"><%= t.key %></span>
+<% end %>
+<% content_for :actions do %>
+  <% if can?("ticket.write") %><%= link_to edit_ticket_path(t), class: "btn btn-sm" do %><%= icon("edit", size: 13) %> Edit<% end %><% end %>
+<% end %>
+<% lease = t.active_lease %>
+<% next_states = Agentboard::StateMachines::Ticket.next_states(t.status) - ["claimed"] %>
+
+<div class="detail">
+  <div class="detail-main">
+    <div class="row" style="gap:10px">
+      <%= status_pill(t.status) %><%= priority_icon(t.priority) %><span class="muted"><%= t.priority_label %></span><%= kind_badge(t.kind) %>
+      <% t.labels.each do |l| %><span class="label-chip" style="--h:<%= Digest::MD5.hexdigest(l)[0, 2].to_i(16) * 360 / 255 %>"><%= l %></span><% end %>
+    </div>
+    <h1 class="ticket-title"><%= t.title %></h1>
+
+    <% if t.status == "blocked" %>
+      <div class="callout callout-bad mb"><%= icon("ban", size: 16) %><div><strong>Blocked.</strong> <%= t.blocked_reason %></div></div>
+    <% end %>
+
+    <div class="prose mb"><%= t.description %></div>
+
+    <% t.artifacts.select { |a| a.kind == "capture" }.first(1).each do |cap| %>
+      <% m = cap.metadata %>
+      <section class="card" id="capture">
+        <div class="card-head"><h2><%= icon("eye", size: 15) %> Captured from the app</h2>
+          <span class="muted" style="margin-left:auto;font-size:12px">by <%= m["captured_by"] %> · <%= ago(cap.created_at) %></span></div>
+        <div class="card-body stack-sm">
+          <dl class="kv">
+            <dt>Page</dt><dd class="mono" style="font-size:12px"><%= m["url"] || "—" %></dd>
+            <dt>Route</dt><dd><code><%= m["route"] || "—" %></code></dd>
+            <dt>Viewport</dt><dd class="muted"><%= m.dig("viewport", "width") %>×<%= m.dig("viewport", "height") %></dd>
+          </dl>
+          <% Array(m["elements"]).each_with_index do |el, i| %>
+            <div class="list-row" style="padding:8px 0;align-items:flex-start">
+              <span class="pill pill-review" style="height:20px"><%= i + 1 %></span>
+              <span class="grow" style="min-width:0">
+                <code style="word-break:break-all"><%= el["selector"] %></code>
+                <% if el["template"] %><div style="font-size:12px;color:var(--c-green)" class="mono">↳ <%= el["template"] %></div><% end %>
+                <% if el["text"].present? %><div class="muted" style="font-size:12.5px">“<%= el["text"].truncate(140) %>”</div><% end %>
+              </span>
+            </div>
+          <% end %>
+          <% if (shot = t.artifacts.find { |a| a.kind == "screenshot" }) %>
+            <img src="<%= screenshot_capture_path(shot) %>" alt="Screenshot of the captured area" style="max-width:100%;border-radius:10px;border:1px solid var(--border);margin-top:6px">
+          <% end %>
+          <% if Array(m["console_errors"]).any? %>
+            <details class="output"><summary><%= m["console_errors"].size %> console error(s)</summary><pre><%= m["console_errors"].join("\n") %></pre></details>
+          <% end %>
+          <p class="hint" style="margin:4px 0 0">Agents receive these templates first in their context.</p>
+        </div>
+      </section>
+    <% end %>
+
+    <div class="row row-wrap mb" style="gap:6px">
+      <% unless can?("ticket.transition") %><span class="hint">Read-only: your role (<%= current_actor.role %>) cannot change tickets.</span><% next_states = [] %><% end %>
+      <% if t.status == "ready" && can?("ticket.claim") %>
+        <%= button_to transition_ticket_path(t), params: { to: "claimed" }, class: "btn btn-sm", form: { style: "display:inline" } do %><%= icon("lock", size: 13) %> Claim<% end %>
+      <% end %>
+      <% next_states.each do |to| %>
+        <% if %w[blocked cancelled reopened].include?(to) || (to == "ready" && t.status == "backlog" && t.acceptance_criteria.none?) %>
+          <details class="popover">
+            <summary class="btn btn-sm <%= "btn-danger" if %w[blocked cancelled].include?(to) %>"><%= status_glyph(to) %> <%= Agentboard::StateMachines::Ticket::LABELS[to] %>…</summary>
+            <div class="popover-panel" style="left:0;right:auto;min-width:300px">
+              <%= form_with url: transition_ticket_path(t), method: :post, class: "stack-sm", style: "padding:6px" do %>
+                <%= hidden_field_tag :to, to %>
+                <% if to == "ready" %><%= hidden_field_tag :override_criteria, "1" %><span class="hint">No acceptance criteria yet. Override with a reason (recorded in the audit log).</span><% end %>
+                <input class="input" name="reason" placeholder="Reason (required)" required autofocus>
+                <button class="btn btn-primary btn-sm">Move to <%= Agentboard::StateMachines::Ticket::LABELS[to] %></button>
+              <% end %>
+            </div>
+          </details>
+        <% elsif to == "testing" && !t.artifacts.where(kind: %w[commit diff pull_request]).exists? %>
+          <%= button_to transition_ticket_path(t), params: { to: to, verification_requested: "1" }, class: "btn btn-sm", form: { style: "display:inline" } do %><%= status_glyph(to) %> Request verification<% end %>
+        <% elsif to == "done" && !can?("ticket.complete") %>
+          <span class="btn btn-sm is-disabled" title="Completing tickets needs the maintainer role"><%= icon("lock", size: 13) %> Mark done</span>
+        <% elsif to == "done" %>
+          <%= button_to complete_ticket_path(t), params: { lock_version: t.lock_version }, class: "btn btn-sm #{@completion[:ok] ? "btn-success" : "is-disabled"}", form: { style: "display:inline" }, title: @completion[:missing].join("\n") do %><%= icon("check", size: 13) %> Mark done<% end %>
+        <% else %>
+          <%= button_to transition_ticket_path(t), params: { to: to, lock_version: t.lock_version }, class: "btn btn-sm", form: { style: "display:inline" } do %><%= status_glyph(to) %> <%= Agentboard::StateMachines::Ticket::LABELS[to] %><% end %>
+        <% end %>
+      <% end %>
+    </div>
+
+    <section class="card" id="criteria">
+      <div class="card-head">
+        <h2><%= icon("check", size: 15) %> Acceptance criteria</h2>
+        <% done, total = t.criteria_progress %>
+        <span class="row muted" style="margin-left:auto"><%= meter(done, total) %> <%= done %>/<%= total %></span>
+      </div>
+      <div class="card-body">
+        <div class="criteria">
+          <% t.acceptance_criteria.each do |c| %>
+            <div class="criterion">
+              <span class="cbox is-<%= c.state %>"><% if c.state == "verified" %><%= icon("check", size: 12, stroke: 3) %><% elsif c.state == "failed" %><%= icon("x", size: 12, stroke: 3) %><% elsif c.state == "waived" %>–<% end %></span>
+              <div class="criterion-text">
+                <div><%= c.description %></div>
+                <div class="faint" style="font-size:11.5px"><%= c.verification_kind %><% if c.verified_by %> · <%= c.state %> by <%= c.verified_by %> <%= ago(c.verified_at) %><% end %></div>
+              </div>
+              <div class="criterion-actions" <%= "hidden" unless can?("ticket.write") %>>
+                <% { "verified" => "check", "failed" => "x", "waived" => "ban", "pending" => "refresh" }.except(c.state).each do |state, ic| %>
+                  <%= button_to ticket_criterion_path(t, c), method: :patch, params: { state: state }, class: "btn btn-ghost btn-sm btn-icon", title: "Mark #{state}", form: { style: "display:inline" } do %><%= icon(ic, size: 13) %><% end %>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+        <%= form_with url: ticket_criteria_path(t), scope: :criterion, class: "row mt-sm", hidden: !can?("ticket.write") do |f| %>
+          <%= f.text_field :description, class: "input", placeholder: "Add a criterion…", required: true %>
+          <%= f.select :verification_kind, Agentboard::AcceptanceCriterion::VERIFICATION_KINDS, {}, class: "select", style: "width:120px" %>
+          <button class="btn"><%= icon("plus", size: 14) %></button>
+        <% end %>
+      </div>
+    </section>
+
+    <% if t.subtasks.any? || t.parent %>
+      <section class="card">
+        <div class="card-head"><h2><%= icon("layers", size: 15) %> <%= t.parent ? "Part of" : "Subtasks" %></h2>
+          <% unless t.parent %><%= link_to new_ticket_path(parent: t.id), class: "btn btn-ghost btn-sm", style: "margin-left:auto" do %><%= icon("plus", size: 12) %> Subtask<% end %><% end %></div>
+        <div class="card-body-flush">
+          <% (t.parent ? [t.parent] : t.subtasks.includes(:project).ordered).each do |sub| %>
+            <%= link_to ticket_path(sub), class: "list-row" do %><%= status_glyph(sub.status) %><span class="mono muted" style="font-size:12px"><%= sub.key %></span><span class="grow truncate"><%= sub.title %></span><%= status_pill(sub.status) %><% end %>
+          <% end %>
+        </div>
+      </section>
+    <% end %>
+
+    <section class="card">
+      <div class="card-head"><h2><%= icon("sparkles", size: 15) %> Suggestions</h2><span class="muted" style="margin-left:auto;font-size:12px">From static analysis · nothing changes until you accept</span></div>
+      <div class="card-body-flush">
+        <turbo-frame id="ticket-suggestions" src="<%= suggestions_ticket_path(t) %>" loading="lazy">
+          <div class="empty" style="padding:16px"><span>Analysing the repository…</span></div>
+        </turbo-frame>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2><%= icon("flask", size: 15) %> Verification</h2>
+        <span class="muted" style="margin-left:auto;font-size:12px">head <%= sha_tag(@head_sha) %></span>
+        <%= button_to verify_ticket_path(t), class: "btn btn-sm", form: { style: "display:inline", hidden: !can?("execution.start") }, title: "Run the approved command catalog against the repository HEAD" do %><%= icon("play", size: 12) %> Verify HEAD<% end %>
+      </div>
+      <div class="card-body-flush">
+        <% if @checks[:checks].empty? %>
+          <div class="empty" style="padding:20px"><span><%= @checks[:missing].first || "No required checks configured" %></span></div>
+        <% else %>
+          <% @checks[:checks].each do |c| %>
+            <div class="check-row">
+              <%= execution_pill(c[:status]) %>
+              <strong class="mono" style="font-size:12.5px"><%= c[:name] %></strong>
+              <span class="muted grow" style="font-size:12px"><%= c[:status] == "stale" ? "passed only on an older commit — re-run for the current head" : (c[:status] == "missing" ? "not run for this head" : "") %></span>
+              <%= sha_tag(c[:commit_sha]) %>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2><%= icon("commit", size: 15) %> Evidence</h2><span class="muted" style="margin-left:auto;font-size:12px"><%= @artifacts.size %> artifacts</span></div>
+      <div class="card-body-flush">
+        <% if @artifacts.empty? %>
+          <div class="empty" style="padding:20px"><span>Commits, diffs, test reports and PRs linked by agents or the runtime appear here.</span></div>
+        <% end %>
+        <% @artifacts.each do |a| %>
+          <div class="list-row">
+            <%= icon({ "commit" => "commit", "pull_request" => "branch", "test_report" => "flask", "context" => "layers", "log" => "terminal" }.fetch(a.kind, "file"), size: 15, klass: "muted") %>
+            <span class="grow truncate">
+              <strong style="font-weight:550"><%= a.title.presence || a.kind.humanize %></strong>
+              <% if a.commit_sha %> <%= sha_tag(a.commit_sha) %><% end %>
+              <% if a.kind == "commit" && a.metadata["verified_in_repo"] == false %><span class="pill pill-blocked" style="height:18px;font-size:11px">not in repo</span><% end %>
+            </span>
+            <%= provenance_badge(a.provenance) %>
+            <span class="faint" style="font-size:12px"><%= ago(a.created_at) %></span>
+          </div>
+        <% end %>
+        <details class="popover" style="padding:8px 14px">
+          <summary class="btn btn-ghost btn-sm"><%= icon("branch", size: 13) %> Link pull request manually</summary>
+          <%= form_with url: link_pr_ticket_path(t), class: "stack-sm mt-sm" do %>
+            <input class="input" name="url" placeholder="https://github.com/owner/repo/pull/123" required>
+            <div class="row">
+              <select name="state" class="select" style="width:130px"><option>open</option><option>merged</option><option>closed</option></select>
+              <input class="input mono" name="merge_commit_sha" placeholder="merge commit SHA (required for merged)">
+              <button class="btn btn-sm">Link</button>
+            </div>
+            <span class="hint">A manual merge is accepted only if the merge commit exists locally and contains the reviewed head. Prefer the signed GitHub webhook.</span>
+          <% end %>
+        </details>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2><%= icon("terminal", size: 15) %> Executions</h2></div>
+      <div class="card-body-flush">
+        <% if @executions.empty? %>
+          <div class="empty" style="padding:20px"><span>No executions yet. Start one from the panel on the right, or let a developer's own agent session work on it through MCP.</span></div>
+        <% end %>
+        <% @executions.each do |e| %>
+          <%= link_to execution_path(e), class: "list-row" do %>
+            <%= provider_avatar(e.provider_key) %>
+            <span class="grow"><strong style="font-weight:550"><%= e.action.humanize %></strong> <span class="muted">· attempt <%= e.attempt %> · <%= e.provider_key %></span></span>
+            <% if e.verification_results.any? %><span class="muted" style="font-size:12px"><%= e.verification_results.count(&:passed?) %>/<%= e.verification_results.size %> checks</span><% end %>
+            <%= execution_pill(e.status) %>
+            <span class="faint" style="font-size:12px;width:90px;text-align:right"><%= ago(e.created_at) %></span>
+          <% end %>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="card" id="activity">
+      <div class="card-head"><h2><%= icon("pulse", size: 15) %> Activity</h2>
+        <span class="row" style="margin-left:auto;gap:4px"><% %w[confirmed provider_reported git_observed inferred].each do |p| %><%= provenance_badge(p) %><% end %></span>
+      </div>
+      <div class="card-body">
+        <%= form_with url: ticket_comments_path(t), scope: :comment, class: "composer mb", hidden: !can?("ticket.comment") do |f| %>
+          <%= f.text_area :body, class: "textarea", placeholder: "Leave a comment… (secrets are redacted automatically)", required: true %>
+          <div class="row"><span class="hint grow">Comments are visible to agents through MCP.</span><button class="btn btn-primary btn-sm">Comment</button></div>
+        <% end %>
+        <div class="timeline">
+          <% comments = t.comments.index_by(&:id) %>
+          <% @events.each do |e| %>
+            <% ic, tone = event_icon(e) %>
+            <div class="tl-item">
+              <span class="tl-icon <%= tone %>"><%= icon(ic, size: 13) %></span>
+              <div class="tl-body">
+                <div class="tl-line">
+                  <span class="tl-who"><%= actor_label(e) %></span>
+                  <span><%= event_title(e) %></span>
+                  <% unless e.provenance == "confirmed" %><%= provenance_badge(e.provenance) %><% end %>
+                  <span class="tl-when"><%= ago(e.occurred_at) %></span>
+                </div>
+                <% if e.event_type == "ticket.commented" && (c = comments[e.payload["comment_id"]]) %>
+                  <div class="comment-bubble"><%= c.body %></div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <aside class="detail-side">
+    <div class="card"><div class="card-body">
+      <dl class="kv">
+        <dt>Status</dt><dd><%= status_pill(t.status) %></dd>
+        <dt>Priority</dt><dd><%= priority_icon(t.priority) %> <%= t.priority_label %></dd>
+        <dt>Lease</dt><dd><% if lease %><%= avatar(lease.holder_label, kind: lease.agent_session_id ? "agent" : "human", size: 20) %><span class="truncate"><%= lease.holder_label %></span><span class="faint" style="font-size:11.5px">until <%= lease.expires_at.strftime("%H:%M") %> · #<%= lease.fencing_token %></span><% else %><span class="faint">Unclaimed</span><% end %></dd>
+        <dt>Depends on</dt>
+        <dd>
+          <% t.dependencies.includes(:depends_on_ticket).each do |d| %>
+            <span class="row" style="gap:4px"><%= status_glyph(d.depends_on_ticket.status) %><%= link_to d.depends_on_ticket.key, ticket_path(d.depends_on_ticket), class: "link mono", style: "font-size:12px" %>
+              <%= button_to ticket_dependency_path(t, d), method: :delete, class: "btn btn-ghost btn-sm btn-icon", form: { style: "display:inline" }, title: "Remove" do %><%= icon("x", size: 11) %><% end %></span>
+          <% end %>
+          <details class="popover"><summary class="btn btn-ghost btn-sm"><%= icon("plus", size: 12) %> Add</summary>
+            <div class="popover-panel" style="left:0;right:auto">
+              <%= form_with url: ticket_dependencies_path(t), class: "row", style: "padding:6px" do %>
+                <select name="depends_on" class="select"><% @other_tickets.each do |o| %><option value="<%= o.key %>"><%= o.key %> — <%= o.title.truncate(40) %></option><% end %></select>
+                <button class="btn btn-sm btn-primary">Add</button>
+              <% end %>
+            </div>
+          </details>
+        </dd>
+        <dt>Milestone</dt><dd><% if t.milestone %><%= icon("flag", size: 13, klass: "muted") %> <%= t.milestone.name %><% else %><span class="faint">None</span><% end %></dd>
+        <% if t.subtasks.none? && t.parent.nil? %><dt>Subtasks</dt><dd><%= link_to new_ticket_path(parent: t.id), class: "btn btn-ghost btn-sm" do %><%= icon("plus", size: 12) %> Add<% end %></dd><% end %>
+        <dt>Created</dt><dd class="muted"><%= ago(t.created_at) %></dd>
+        <dt>Version</dt><dd class="muted mono" style="font-size:12px">v<%= t.lock_version %></dd>
+      </dl>
+    </div></div>
+
+    <div class="card">
+      <div class="card-head"><h3><%= icon("shield", size: 14) %> Completion gates</h3></div>
+      <div class="card-body">
+        <% gates = [] %>
+        <% gates << ["Acceptance criteria verified", t.acceptance_criteria.any? && t.acceptance_criteria.all?(&:satisfied?)] if Agentboard.config.completion["require_criteria_verified"] %>
+        <% gates << ["Required checks pass at head", @checks[:ok]] if Agentboard.config.completion["require_checks"] %>
+        <% gates << ["Human review approved for head", @completion.dig(:review, :status) == "approved"] if Agentboard.config.completion["require_approval"] %>
+        <% gates << ["Merged PR verified", @completion.dig(:pull_request, :state) == "merged"] if Agentboard::CompletionPolicy.merged_pr_required?(t) %>
+        <% gates.each do |label, ok| %>
+          <div class="gate <%= ok ? "ok" : "no" %>"><%= icon(ok ? "check" : "x", size: 14, stroke: 2.5) %><span><%= label %></span></div>
+        <% end %>
+        <div class="divider"></div>
+        <p class="hint" style="margin:0">An agent can request completion but cannot bypass these gates. Evidence is checked against persisted records only.</p>
+      </div>
+    </div>
+
+    <% pending = @approvals.select(&:pending?) %>
+    <% if pending.any? %>
+      <div class="card">
+        <div class="card-head"><h3><%= icon("shield", size: 14) %> Awaiting your approval</h3></div>
+        <div class="card-body stack">
+          <% pending.each do |a| %>
+            <%= render "agentboard/approvals/approval", approval: a %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <div class="card" <%= "hidden" unless can?("execution.start") %>>
+      <div class="card-head"><h3><%= icon("play", size: 14) %> Run an agent</h3></div>
+      <div class="card-body">
+        <%= form_with url: run_ticket_path(t), class: "stack-sm" do %>
+          <%= hidden_field_tag :idempotency_key, SecureRandom.uuid %>
+          <div class="form-grid" style="grid-template-columns:1fr 1fr">
+            <div class="field"><label>Provider</label>
+              <select name="provider" class="select"><% @providers.each do |p| %><option value="<%= p %>" <%= "selected" if p == "fake" %>><%= Agentboard::Providers.registry.adapter_class(p).display_name %></option><% end %></select></div>
+            <div class="field"><label>Action</label>
+              <select name="action_name" class="select"><% %w[implement plan review fix_tests summarize].each do |a| %><option value="<%= a %>"><%= a.humanize %></option><% end %></select></div>
+          </div>
+          <button class="btn btn-primary" <%= "disabled" unless Agentboard::Executions::RUNNABLE_TICKET_STATES.include?(t.status) %>><%= icon("play", size: 13) %> Start execution</button>
+          <span class="hint">Runs in an isolated worktree; results are verified independently.</span>
+        <% end %>
+        <% if @workflows.any? %>
+          <div class="divider"></div>
+          <%= form_with url: run_ticket_path(t), class: "row" do %>
+            <select name="workflow" class="select"><% @workflows.each do |w| %><option value="<%= w.name %>"><%= w.name %> v<%= w.version %></option><% end %></select>
+            <button class="btn"><%= icon("workflow", size: 13) %> Run</button>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+
+    <% if @sessions.any? %>
+      <div class="card">
+        <div class="card-head"><h3><%= icon("bot", size: 14) %> Agent sessions</h3></div>
+        <div class="card-body-flush">
+          <% @sessions.each do |link| %>
+            <div class="list-row">
+              <%= provider_avatar(link.agent_session.provider_key, size: 20) %>
+              <span class="grow truncate"><%= link.agent_session.display_name %><br><span class="faint" style="font-size:11.5px"><%= link.source.humanize %> · <%= link.agent_session.trust_level %><%= " · ended" if link.ended_at %></span></span>
+              <% if link.confidence == "needs_confirmation" && link.ended_at.nil? %>
+                <%= button_to "Confirm", session_path(link.agent_session), method: :patch, params: { ticket_key: t.key }, class: "btn btn-sm" %>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </aside>
+</div>

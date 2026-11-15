@@ -1,0 +1,36 @@
+<% lease = ticket.leases.find { |l| l.released_at.nil? && l.expires_at > Time.current } %>
+<% running = ticket.executions.find { |e| Agentboard::StateMachines::Execution::ACTIVE.include?(e.status) } %>
+<% done, total = ticket.criteria_progress %>
+<% allowed = Agentboard::StateMachines::Ticket.next_states(ticket.status) %>
+<%= link_to ticket_path(ticket), class: "tcard#{" is-blocked" if ticket.status == "blocked"}#{" is-running" if running}",
+      draggable: "true", id: "ticket-#{ticket.key}",
+      data: { key: ticket.key, status: ticket.status, allowed: allowed.join(" "), position: ticket.position, move_url: move_ticket_path(ticket), turbo_frame: "_top" } do %>
+  <div class="tcard-top">
+    <%= priority_icon(ticket.priority) %>
+    <span class="tcard-key"><%= ticket.key %></span>
+    <% if %w[blocked reopened].include?(ticket.status) %>
+      <%= status_pill(ticket.status) %>
+    <% end %>
+    <span class="tcard-foot">
+      <% if running %><%= provider_avatar(running.provider_key, size: 18) %><% end %>
+      <% if lease %><span title="Leased by <%= lease.holder_label %> until <%= lease.expires_at.strftime("%H:%M") %>"><%= avatar(lease.holder_label, kind: lease.agent_session_id ? "agent" : "human", size: 18) %></span><% end %>
+    </span>
+  </div>
+  <div class="tcard-title"><%= ticket.title %></div>
+  <% if ticket.status == "blocked" && ticket.blocked_reason.present? %>
+    <div class="tcard-blocker"><%= icon("ban", size: 13) %><span class="truncate"><%= ticket.blocked_reason %></span></div>
+  <% end %>
+  <div class="tcard-meta">
+    <%= kind_badge(ticket.kind) %>
+    <% ticket.labels.first(2).each do |l| %><span class="label-chip" style="--h:<%= Digest::MD5.hexdigest(l)[0, 2].to_i(16) * 360 / 255 %>"><%= l %></span><% end %>
+    <% if total.positive? %>
+      <span class="row" style="gap:5px" title="Acceptance criteria"><%= meter(done, total) %><span><%= done %>/<%= total %></span></span>
+    <% end %>
+    <% if ticket.depends_on.any? { |d| d.status != "done" } %>
+      <span class="row" style="gap:3px;color:var(--c-orange)" title="Waiting on dependencies"><%= icon("link", size: 12) %><%= ticket.depends_on.count { |d| d.status != "done" } %></span>
+    <% end %>
+    <% if running %>
+      <span class="row" style="gap:4px;color:var(--accent-text)"><%= icon("pulse", size: 12) %><%= running.status.humanize.downcase %></span>
+    <% end %>
+  </div>
+<% end %>

@@ -1,0 +1,13 @@
+# Provider compatibility manifest (spec §26.5).
+# status:
+#   smoke_tested  – real end-to-end run through AgentBoard (worktree → stream → snapshot →
+#                   verification → review) passed; sanitized real output kept as a fixture
+#   flags_checked – CLI flags verified against `--help`; parsing covered by fixtures only
+provider: claude
+adapter_version: 1
+validated:
+  - binary_version: "2.1.325"
+    status: smoke_tested
+    smoke_test: "2026-11-14 · haiku · implement ticket in Rails app · checks passed at snapshot SHA"
+    capabilities: [mcp, passive_hooks, active_execution, structured_events, streaming, cancellation, session_resume, permission_requests]
+    fixtures: test/fixtures/providers/claude_code

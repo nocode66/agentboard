@@ -1,0 +1,1 @@
+require "agentboard/runtime/ipc"

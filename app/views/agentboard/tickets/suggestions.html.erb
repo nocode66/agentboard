@@ -1,0 +1,21 @@
+<turbo-frame id="ticket-suggestions">
+  <% if @suggestions.empty? %>
+    <div class="empty" style="padding:16px"><span>No suggestions for this ticket.</span></div>
+  <% else %>
+    <% labels = { "file" => "Relevant file", "complexity" => "Estimated size", "criterion" => "Criterion", "subtask" => "Subtask", "dependency" => "Possible dependency" } %>
+    <% @suggestions.group_by(&:kind).each do |kind, items| %>
+      <div class="section-title" style="margin:12px 16px 4px"><%= labels[kind] || kind %></div>
+      <% items.each do |s| %>
+        <div class="list-row" style="padding:7px 16px">
+          <span class="grow" style="min-width:0">
+            <span class="<%= "mono" if kind == "file" %>" style="font-size:<%= kind == "file" ? "12px" : "13px" %>"><%= s.text %></span>
+            <span class="faint" style="font-size:11.5px;display:block"><%= s.reason %></span>
+          </span>
+          <% unless kind == "file" %>
+            <%= button_to accept_suggestion_ticket_path(@ticket), params: { kind: kind, value: s.value }, class: "btn btn-sm", form: { style: "display:inline", data: { turbo_frame: "_top" } } do %><%= icon("plus", size: 12) %> Accept<% end %>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+  <% end %>
+</turbo-frame>

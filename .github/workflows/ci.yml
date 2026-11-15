@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · Ruby ${{ matrix.ruby }} · ${{ matrix.db }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        ruby: ["3.3", "3.4", "4.0"]
+        db: [sqlite]
+        include:
+          - { os: ubuntu-latest, ruby: "3.4", db: postgresql }
+          - { os: ubuntu-latest, ruby: "4.0", db: postgresql }
+    runs-on: ${{ matrix.os }}
+    services:
+      postgres:
+        image: ${{ matrix.db == 'postgresql' && 'postgres:17' || '' }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DB: ${{ matrix.db }}
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - name: Configure git identity for test repositories
+        run: git config --global user.name CI && git config --global user.email ci@example.com && git config --global init.defaultBranch main
+      - name: Prepare database
+        run: cd test/dummy && RAILS_ENV=test bin/rails db:prepare
+      - name: Run tests
+        run: bin/rails test

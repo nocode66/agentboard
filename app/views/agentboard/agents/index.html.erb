@@ -1,0 +1,51 @@
+<% content_for :title, "Agents" %>
+<% content_for :crumbs do %><%= icon("bot", size: 16, klass: "muted") %> <span>Agents</span><% end %>
+<div class="page-head"><div><h1>Providers & sessions</h1><p>Capabilities are detected from installed binaries — configuration only expresses intent.</p></div></div>
+<div class="stats mb">
+  <% @probes.each do |p, probe| %>
+    <div class="stat">
+      <div class="row"><%= provider_avatar(p.key, size: 26) %><strong><%= p.display_name %></strong>
+        <span style="margin-left:auto"><%= probe.installed ? execution_pill(probe.supports?(:active_execution) ? "completed" : "waiting") : execution_pill("skipped") %></span></div>
+      <div class="stat-sub mt-sm"><%= probe.installed ? "v#{probe.version} · #{probe.validation}" : "Not installed" %></div>
+      <div class="row row-wrap mt-sm" style="gap:4px">
+        <% Agentboard::Providers::CAPABILITIES.each do |cap| %>
+          <span class="prov <%= probe.supports?(cap) ? "prov-git-observed" : "prov-inferred" %>" title="<%= cap %>"><%= cap.to_s.tr("_", " ") %></span>
+        <% end %>
+      </div>
+      <% probe.diagnostics.first(1).each do |d| %><div class="hint mt-sm"><%= d %></div><% end %>
+    </div>
+  <% end %>
+</div>
+<div class="card card-body-flush">
+  <div class="card-head"><h2><%= icon("user", size: 15) %> Sessions</h2><span class="muted" style="margin-left:auto;font-size:12px">Agent-supplied session ids are labels; trust comes from hooks, the runtime, or the MCP process.</span></div>
+  <% if @sessions.empty? %>
+    <div class="empty"><%= icon("bot", size: 26) %><strong>No agent sessions yet</strong><span>Run <code>bundle exec agentboard provider setup claude</code>, then start <code>claude</code> in this repository.</span></div>
+  <% else %>
+    <table class="table table-compact">
+      <thead><tr><th>Session</th><th>Trust</th><th>State</th><th>Ticket</th><th>Attach</th><th class="right">Last seen</th></tr></thead>
+      <tbody>
+        <% @sessions.each do |s| %>
+          <% link = s.ticket_links.find { |l| l.ended_at.nil? } %>
+          <tr>
+            <td><span class="row"><%= provider_avatar(s.provider_key, size: 20) %><span class="truncate"><%= s.display_name %></span></span></td>
+            <td><span class="prov <%= { "launched" => "prov-confirmed", "hook" => "prov-provider-reported", "mcp_stdio" => "prov-git-observed" }.fetch(s.trust_level, "prov-inferred") %>"><%= s.trust_level %></span></td>
+            <td><%= execution_pill({ "active" => "running", "revoked" => "rejected" }.fetch(s.state, "skipped")) %></td>
+            <td><% if link %><%= link_to link.ticket.key, ticket_path(link.ticket), class: "link mono" %> <span class="faint" style="font-size:11px"><%= link.source %><%= " · unconfirmed" if link.confidence == "needs_confirmation" %></span><% else %><span class="faint">—</span><% end %></td>
+            <td>
+              <%= form_with url: session_path(s), method: :patch, class: "row" do %>
+                <select name="ticket_key" class="select" style="height:26px;width:150px;font-size:12px"><option value="">Detach</option><% @open_tickets.each do |t| %><option value="<%= t.key %>" <%= "selected" if link&.ticket_id == t.id %>><%= t.key %></option><% end %></select>
+                <button class="btn btn-sm">Set</button>
+              <% end %>
+            </td>
+            <td class="right muted"><%= ago(s.last_seen_at || s.created_at) %>
+              <% if s.state == "active" && %w[mcp_stdio hook].include?(s.trust_level) && can?("session.manage") %>
+                <%= button_to "Revoke", session_path(s), method: :patch, params: { revoke: "1" }, class: "btn btn-sm btn-danger", form: { style: "display:inline;margin-left:6px" } %>
+              <% end %>
+              <% if s.metadata["correlated_session_id"] %><span class="prov prov-confirmed" title="Same agent process (pid <%= s.metadata["agent_pid"] %>)">correlated</span><% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</div>

@@ -1,0 +1,21 @@
+# AgentBoard agent sandbox image. Build with: bundle exec agentboard sandbox build
+# Contains the project's Ruby toolchain and gems plus the agent CLIs. It runs as your UID
+# with a read-only root filesystem; network egress goes only through the allowlisting proxy.
+ARG RUBY_VERSION=__RUBY_VERSION__
+FROM ruby:${RUBY_VERSION}-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates curl build-essential libyaml-dev libpq-dev pkg-config nodejs npm \
+ && rm -rf /var/lib/apt/lists/*
+
+# Agent CLIs (pin versions to the ones validated in AgentBoard's compatibility manifest).
+RUN npm install -g @anthropic-ai/claude-code @openai/codex && npm cache clean --force
+
+# Project gems, so agents can run the test suite inside the sandbox. The development group
+# is skipped: it usually holds tooling (and local path gems) the test suite does not need.
+ENV BUNDLE_PATH=/usr/local/bundle BUNDLE_WITHOUT=development
+COPY Gemfile Gemfile.lock* /tmp/app/
+RUN cd /tmp/app && bundle install --jobs 4 && rm -rf /tmp/app && chmod -R a+rX /usr/local/bundle
+
+RUN git config --system --add safe.directory '*'
+WORKDIR /workspace

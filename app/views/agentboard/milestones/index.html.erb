@@ -1,0 +1,28 @@
+<% content_for :title, "Milestones" %>
+<% content_for :crumbs do %><%= icon("flag", size: 16, klass: "muted") %> <span>Milestones</span><% end %>
+<div class="content-narrow">
+  <div class="page-head"><div><h1>Milestones</h1><p>Group tickets into deliverables and track evidence-backed progress.</p></div></div>
+  <div class="card mb">
+    <%= form_with url: milestones_path, scope: :milestone, class: "card-body row" do |f| %>
+      <%= f.text_field :name, class: "input", placeholder: "Milestone name, e.g. Checkout v2", required: true %>
+      <%= f.date_field :target_date, class: "input", style: "width:170px" %>
+      <button class="btn btn-primary"><%= icon("plus", size: 14) %> Add</button>
+    <% end %>
+  </div>
+  <div class="card card-body-flush">
+    <% if @milestones.empty? %>
+      <div class="empty"><%= icon("flag", size: 26) %><strong>No milestones yet</strong><span>Create one above, then pick it on a ticket.</span></div>
+    <% end %>
+    <% @milestones.each do |m| %>
+      <% counts = @progress.select { |(mid, _), _| mid == m.id }.transform_keys(&:last) %>
+      <% total = counts.values.sum; done = counts["done"].to_i %>
+      <div class="list-row" style="padding:12px 16px">
+        <%= icon("flag", size: 15, klass: m.status == "open" ? nil : "faint") %>
+        <span class="grow"><strong style="font-weight:600"><%= m.name %></strong><br><span class="faint" style="font-size:12px"><%= m.target_date ? "Due #{m.target_date.strftime("%b %-d, %Y")}" : "No date" %><%= " · overdue" if m.target_date && m.target_date < Date.current && m.status == "open" && done < total %></span></span>
+        <span class="row" style="width:200px"><%= meter(done, total, klass: "meter-lg") %><span class="muted nowrap"><%= done %>/<%= total %></span></span>
+        <%= link_to "Board", board_path(milestone: m.id), class: "btn btn-sm btn-ghost" %>
+        <%= button_to m.status == "open" ? "Close" : "Reopen", milestone_path(m), method: :patch, params: { status: m.status == "open" ? "closed" : "open" }, class: "btn btn-sm", form: { style: "display:inline" } %>
+      </div>
+    <% end %>
+  </div>
+</div>

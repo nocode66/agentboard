@@ -1,0 +1,78 @@
+<% content_for :title, "Analytics" %>
+<% content_for :crumbs do %><%= icon("chart", size: 16, klass: "muted") %> <span>Analytics</span><% end %>
+<div class="page-head"><div><h1>Delivery analytics</h1><p>Unknown values are shown as “—”, never as zero. Costs are only what providers reported.</p></div></div>
+<div class="stats mb">
+  <div class="stat"><div class="stat-label">Executions</div><div class="stat-value"><%= @total %></div><div class="stat-sub"><%= @by_status["completed"].to_i %> completed · <%= @by_status["failed"].to_i %> failed</div></div>
+  <div class="stat"><div class="stat-label">First-pass success</div><div class="stat-value"><%= @first_pass_rate ? "#{@first_pass_rate}%" : "—" %></div><div class="stat-sub">implement attempts passing checks on try #1</div></div>
+  <div class="stat"><div class="stat-label">Median duration</div><div class="stat-value"><%= duration(@median_duration) %></div><div class="stat-sub"><%= @retries %> retries</div></div>
+  <div class="stat"><div class="stat-label">Human interventions</div><div class="stat-value"><%= @human_interventions %></div><div class="stat-sub">approval latency <%= duration(@approval_latency) %></div></div>
+</div>
+<% if @metrics.nil? %>
+  <div class="callout mb"><%= icon("chart", size: 16) %><div><strong>Operational metrics</strong> (queue wait p95, event lag, orphan worktrees, provider errors), the support bundle and audit export are part of <strong>AgentBoard Pro</strong>. The statistics below are free.</div></div>
+<% else %>
+<div class="stats mb">
+  <div class="stat"><div class="stat-label">Queue wait (median / p95)</div><div class="stat-value" style="font-size:18px"><%= duration(@metrics[:queue_wait_median]) %> <span class="muted" style="font-size:13px">/ <%= duration(@metrics[:queue_wait_p95]) %></span></div></div>
+  <div class="stat"><div class="stat-label">Event processing lag</div><div class="stat-value" style="font-size:18px"><%= @metrics[:outbox_lag_median] ? "#{@metrics[:outbox_lag_median].round(2)}s" : "—" %></div><div class="stat-sub"><%= @metrics[:outbox_pending] %> pending · <%= @metrics[:outbox_dead] %> dead</div></div>
+  <div class="stat"><div class="stat-label">Provider errors / cancellations</div><div class="stat-value" style="font-size:18px"><%= @metrics[:provider_errors] %> <span class="muted" style="font-size:13px">/ <%= @metrics[:cancellations] %></span></div></div>
+  <div class="stat"><div class="stat-label">Sessions · orphan worktrees</div><div class="stat-value" style="font-size:18px"><%= @metrics[:active_sessions] %> <span class="muted" style="font-size:13px">· <%= @metrics[:orphan_worktrees] %></span></div><div class="stat-sub">orphans: run <code>agentboard cleanup</code></div></div>
+</div>
+<% end %>
+<div class="detail" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+  <div class="card">
+    <div class="card-head"><h3>Executions · last 14 days</h3></div>
+    <div class="card-body">
+      <% days = (13.downto(0)).map { |i| i.days.ago.to_date } %>
+      <% peak = [@daily.values.max.to_i, 1].max %>
+      <div class="bars">
+        <% days.each do |d| %>
+          <div class="bar" title="<%= d %>: <%= @daily[d].to_i %>"><span style="height:<%= (@daily[d].to_i * 100.0 / peak).round %>%"></span><small><%= d.strftime("%d") %></small></div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>Outcomes by provider</h3></div>
+    <div class="card-body">
+      <% if @by_provider.empty? %><div class="empty" style="padding:16px">No data yet.</div><% end %>
+      <% @by_provider.each do |provider, statuses| %>
+        <% sum = statuses.values.sum.to_f %>
+        <div class="hbar">
+          <span class="row"><%= provider_avatar(provider, size: 18) %><%= provider %></span>
+          <span class="hbar-track">
+            <% { "completed" => "seg-completed", "failed" => "seg-failed", "interrupted" => "seg-interrupted", "cancelled" => "seg-cancelled" }.each do |s, cls| %>
+              <% if statuses[s].positive? %><span class="<%= cls %>" style="width:<%= (statuses[s] / sum * 100).round(1) %>%" title="<%= s %>: <%= statuses[s] %>"></span><% end %>
+            <% end %>
+            <% active = statuses.sum { |s, c| Agentboard::StateMachines::Execution::ACTIVE.include?(s) ? c : 0 } %>
+            <% if active.positive? %><span class="seg-active" style="width:<%= (active / sum * 100).round(1) %>%"></span><% end %>
+          </span>
+          <span class="right muted"><%= sum.to_i %></span>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>Token usage (provider-reported)</h3></div>
+    <div class="card-body-flush">
+      <table class="table table-compact"><thead><tr><th>Provider</th><th class="right">Input</th><th class="right">Output</th><th class="right">Reported cost</th></tr></thead>
+        <tbody>
+          <% if @tokens.empty? %><tr><td colspan="4" class="muted">No usage reported.</td></tr><% end %>
+          <% @tokens.each do |provider, tin, tout, _n| %>
+            <% costs = @reported_cost.select { |(p, _c), _| p == provider } %>
+            <tr><td><%= provider %></td><td class="right mono"><%= tin ? number_with_delimiter(tin) : "—" %></td><td class="right mono"><%= tout ? number_with_delimiter(tout) : "—" %></td>
+              <td class="right mono"><%= costs.any? ? costs.map { |(_, cur), v| "#{number_with_precision(v, precision: 4)} #{cur}" }.join(", ") : "—" %></td></tr>
+          <% end %>
+        </tbody>
+      </table>
+      <p class="hint" style="padding:10px 14px;margin:0">Subscription-based CLI usage is not billed per token; reported cost is the provider's own estimate.</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>Verification outcomes</h3></div>
+    <div class="card-body">
+      <% vsum = [@verification.values.sum, 1].max.to_f %>
+      <% %w[passed failed timeout error].each do |s| %>
+        <div class="hbar"><span><%= s.humanize %></span><span class="hbar-track"><span class="<%= s == "passed" ? "seg-completed" : "seg-failed" %>" style="width:<%= (@verification[s].to_i / vsum * 100).round(1) %>%"></span></span><span class="right muted"><%= @verification[s].to_i %></span></div>
+      <% end %>
+    </div>
+  </div>
+</div>

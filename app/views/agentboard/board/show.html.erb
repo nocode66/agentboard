@@ -1,0 +1,73 @@
+<% content_for :title, "Board" %>
+<% content_for :bare, "1" %>
+<% content_for :crumbs do %>
+  <%= icon("kanban", size: 16, klass: "muted") %> <span>Board</span>
+  <span class="faint" style="font-weight:500"><%= @columns.values.sum(&:size) %> tickets</span>
+<% end %>
+<% content_for :actions do %>
+  <%= form_with url: board_path, method: :get, class: "search", data: { controller: "autosubmit", turbo_action: "replace" } do %>
+    <%= icon("search", size: 14) %>
+    <input class="input" type="search" name="q" value="<%= @filters["q"] %>" placeholder="Search or jump to <%= current_project.key %>-…" data-hotkey="search" data-action="input->autosubmit#submit" autocomplete="off">
+  <% end %>
+  <%= link_to new_ticket_path, class: "btn btn-primary" do %><%= icon("plus", size: 14) %> New ticket<% end %>
+<% end %>
+<% content_for :toolbar do %>
+  <div class="board-toolbar">
+    <span class="muted" style="font-size:12px;margin-right:2px">Filter</span>
+    <% %w[feature bug task chore spike].each do |k| %>
+      <%= link_to k.capitalize, board_path(@filters.merge("kind" => (@filters["kind"] == k ? nil : k)).compact), class: "filter-chip #{"is-on" if @filters["kind"] == k}" %>
+    <% end %>
+    <span class="faint">·</span>
+    <% Agentboard::Ticket::PRIORITIES.each do |p, label| %>
+      <%= link_to board_path(@filters.merge("priority" => (@filters["priority"] == p.to_s ? nil : p.to_s)).compact), class: "filter-chip #{"is-on" if @filters["priority"] == p.to_s}" do %><%= priority_icon(p) %> <%= label %><% end %>
+    <% end %>
+    <% if @labels.any? %>
+      <span class="faint">·</span>
+      <% @labels.first(8).each do |l| %>
+        <%= link_to l, board_path(@filters.merge("label" => (@filters["label"] == l ? nil : l)).compact), class: "filter-chip #{"is-on" if @filters["label"] == l}" %>
+      <% end %>
+    <% end %>
+    <% if @milestones.any? %>
+      <span class="faint">·</span>
+      <% @milestones.each do |m| %>
+        <%= link_to board_path(@filters.merge("milestone" => (@filters["milestone"] == m.id ? nil : m.id)).compact), class: "filter-chip #{"is-on" if @filters["milestone"] == m.id}" do %><%= icon("flag", size: 12) %> <%= m.name %><% end %>
+      <% end %>
+    <% end %>
+    <% if @filters.any? %>
+      <%= link_to board_path, class: "btn btn-ghost btn-sm" do %><%= icon("x", size: 12) %> Clear<% end %>
+    <% end %>
+  </div>
+  <% if @active_executions.any? %>
+    <div class="live-strip">
+      <% @active_executions.each do |e| %>
+        <%= link_to execution_path(e), class: "live-item" do %>
+          <%= provider_avatar(e.provider_key, size: 20) %>
+          <strong class="mono" style="font-size:11.5px"><%= e.ticket.key %></strong>
+          <%= execution_pill(e.status) %>
+          <span class="muted"><%= e.action %> · <%= duration(e.duration) %></span>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>
+
+<div class="board" data-controller="board">
+  <% @columns.each do |status, tickets| %>
+    <section class="column" data-column="<%= status %>">
+      <header class="column-head">
+        <%= status_glyph(status) %>
+        <h3><%= Agentboard::StateMachines::Ticket::LABELS[status] %></h3>
+        <span class="column-count"><%= tickets.size %></span>
+        <% if %w[backlog ready].include?(status) %>
+          <%= link_to new_ticket_path(status: status), class: "btn btn-ghost btn-sm btn-icon", title: "New ticket in #{status}" do %><%= icon("plus", size: 14) %><% end %>
+        <% end %>
+      </header>
+      <div class="column-body">
+        <% if tickets.empty? %>
+          <div class="column-empty"><%= status == "ready" ? "Tickets with acceptance criteria land here" : "Drop tickets here" %></div>
+        <% end %>
+        <%= render partial: "agentboard/board/card", collection: tickets, as: :ticket %>
+      </div>
+    </section>
+  <% end %>
+</div>

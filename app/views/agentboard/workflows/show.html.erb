@@ -1,0 +1,15 @@
+<% content_for :title, @definition.name %>
+<% content_for :crumbs do %><%= link_to "Workflows", workflows_path %><span class="sep">/</span><span class="mono"><%= @definition.name %></span><span class="faint">v<%= @definition.version %></span><% end %>
+<div class="card mb">
+  <div class="card-head"><h2><%= icon("workflow", size: 15) %> <%= @definition.name %></h2><span class="muted">v<%= @definition.version %> · digest <code><%= @definition.digest[0, 12] %></code> · immutable once used</span></div>
+  <div class="card-body"><%= render "agentboard/shared/dag", definition: @parsed, steps: nil %></div>
+</div>
+<div class="detail" style="grid-template-columns:minmax(0,1fr) 340px">
+  <div class="card"><div class="card-head"><h3>Source</h3></div><div class="card-body"><pre class="code-block"><%= @definition.source_yaml.presence || JSON.pretty_generate(@definition.definition) %></pre></div></div>
+  <div class="card"><div class="card-head"><h3><%= icon("play", size: 14) %> Start a run</h3></div>
+    <%= form_with url: start_workflow_path(@definition), class: "card-body stack-sm" do %>
+      <select name="ticket_key" class="select"><% current_project.tickets.open.ordered.limit(200).each do |t| %><option value="<%= t.key %>"><%= t.key %> — <%= t.title.truncate(42) %></option><% end %></select>
+      <button class="btn btn-primary"><%= icon("play", size: 13) %> Start workflow</button>
+    <% end %>
+  </div>
+</div>
